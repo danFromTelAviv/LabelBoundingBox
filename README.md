@@ -24,8 +24,8 @@ A tool for labeling bounding boxes of training images. It is based on BBox-Label
 
 ## for multi-class labeling:
 - Write down your classes in "class.txt"
-- Start label-tool and select class at the top-right corner. ***remember to click "ConfirmClass"***
-- After clicking "ConfirmClass", you can label different classes with different colors.
+- Start label-tool and select class
+- Label - each class will apear in a unique color.
 
 ## for get Frame from Video:
 It isn't user-friendly. If you want to use it, I recommend you to read source code carefully!
