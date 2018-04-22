@@ -64,22 +64,23 @@ class LabelTool:
         self.parent.bind("<Escape>", self.cancelBBox)  # press <Espace> to cancel current bbox
         self.parent.bind("<Left>", self.prevImage) # press 'a' to go backforward
         self.parent.bind("<Right>", self.nextImage) # press 'd' to go forward
+        self.parent.bind("<space>", self.addPointToBboxList)  # press space to go forward
         self.mainPanel.grid(row = 1, column = 1, rowspan = 4, sticky = W+N)
 
         # choose class
-        self.className = StringVar()
-        self.classCandidate = ttk.Combobox(self.frame,state='readonly',textvariable=self.className)
-        self.classCandidate.grid(row=1,column=2)
         if os.path.exists(self.classCandidateFileName):
-            with open(self.classCandidateFileName) as cf:
+            with open(self.classCandidateFileName,encoding="utf-8") as cf:
                 for line in cf.readlines():
                     tmp = line.strip('\n')
                     self.cla_can_temp.append(tmp)
                     COLORS[tmp] = '#%02x%02x%02x' % (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-        self.classCandidate['values'] = self.cla_can_temp
-        self.classCandidate.current(0)
-        self.currentLabelClass = self.classCandidate.get() #init
+        self.className = StringVar()
+        self.className.set(self.cla_can_temp[0])
+        self.classCandidate = OptionMenu(self.frame, self.className, *self.cla_can_temp, command=self.setClass)
+        self.currentLabelClass = self.className.get()  # init
+        self.classCandidate.grid(row=1, column=2)
+
         self.btnClass = Button(self.frame, text = 'ComfirmClass', command = self.setClass)
         self.btnClass.grid(row=2,column=2,sticky = W + E)
 
@@ -122,11 +123,11 @@ class LabelTool:
             self.parent.focus()
             self.category = str(s)
         else:
-            s = r'D:\workspace\python\labelGUI'
+            s = r'./Images/'
 
         # get image list
         self.imageDir = os.path.join(r'./Images', '%s' %self.category)
-        self.imageList = glob.glob(os.path.join(self.imageDir, '*.JPG'))
+        self.imageList = glob.glob(os.path.join(self.imageDir, '.\**\*.JPG'), recursive=True)
         if len(self.imageList) == 0:
             print('No .JPG images found in the specified dir!')
             return
@@ -157,12 +158,13 @@ class LabelTool:
         self.imageName = os.path.split(imagePath)[-1].split('.')[0]
         labelname = self.imageName + '.txt'
         self.labelFileName = os.path.join(self.outDir, labelname)
+        self.labelFileName = imagePath.replace('.'+imagePath.split(".")[-1], ".txt")
 
         if os.path.exists(self.labelFileName):
-            with open(self.labelFileName) as f:
+            with open(self.labelFileName, encoding="utf-8") as f:
                 for (i, line) in enumerate(f):
                     tmp2 = [t.strip() for t in line.split()]
-                    tmp = [t for t in tmp2[1:]]
+                    tmp = [t for t in tmp2[-5:]]
                     self.bboxList.append(tuple(tmp))
                     tmpId = self.mainPanel.create_rectangle(int(tmp[1]), int(tmp[2]), int(tmp[3]), int(tmp[4]), width = 2,
                                                             outline = COLORS[tmp[0]])
@@ -172,7 +174,7 @@ class LabelTool:
                     self.listbox.itemconfig(len(self.bboxIdList) - 1, fg = COLORS[tmp[0]])
 
     def saveImage(self):
-        with open(self.labelFileName, 'w') as f:
+        with open(self.labelFileName, 'w', encoding="utf-8") as f:
             for bbox in self.bboxList:
                 f.write('%s.jpg ' % self.imageName)
                 f.write(' '.join(map(str, bbox)) + '\n')
@@ -185,12 +187,26 @@ class LabelTool:
         else:
             x1, x2 = min(self.STATE['x'], event.x), max(self.STATE['x'], event.x)
             y1, y2 = min(self.STATE['y'], event.y), max(self.STATE['y'], event.y)
-            self.bboxList.append((self.currentLabelClass, x1, y1, x2, y2))
-            self.bboxIdList.append(self.bboxId)
-            self.bboxId = None
-            self.listbox.insert(END, '%s : (%d, %d) -> (%d, %d)' %(self.currentLabelClass,x1, y1, x2, y2))
-            self.listbox.itemconfig(len(self.bboxIdList) - 1, fg = COLORS[self.currentLabelClass])
+            self.append_new_bbox(x1, x2, y1, y2)
         self.STATE['click'] = 1 - self.STATE['click']
+
+    def append_new_bbox(self, x1, x2, y1, y2):
+        self.bboxList.append((self.currentLabelClass, x1, y1, x2, y2))
+        self.bboxIdList.append(self.bboxId)
+        self.bboxId = None
+        self.listbox.insert(END, '%s : (%d, %d) -> (%d, %d)' % (self.currentLabelClass, x1, y1, x2, y2))
+        self.listbox.itemconfig(len(self.bboxIdList) - 1, fg=COLORS[self.currentLabelClass])
+
+    def addPointToBboxList(self, event=None):
+        if self.STATE['click'] != 0:
+            x1, y1, x2, y2 = self.STATE['x']-1, self.STATE['y']-1, self.STATE['x']+1, self.STATE['y']+1
+            if self.bboxId:
+                self.mainPanel.delete(self.bboxId)
+            self.bboxId = self.mainPanel.create_rectangle(x1, y1, x2, y2, width=2, outline=COLORS[self.currentLabelClass])
+            self.append_new_bbox(x1, x2, y1, y2)
+            self.STATE['click'] = 1 - self.STATE['click']
+            create_line
+
 
     def mouseMove(self, event):
         self.disp.config(text = 'x: %d, y: %d' %(event.x, event.y))
@@ -250,12 +266,13 @@ class LabelTool:
             self.cur = idx
             self.loadImage()
 
-    def setClass(self):
-        self.currentLabelClass = self.classCandidate.get()
+    def setClass(self, event=None ):
+        self.currentLabelClass = self.className.get()
         print('set label class to :',self.currentLabelClass)
 
 if __name__ == '__main__':
     root = Tk()
     tool = LabelTool(root)
+    tool.loadDir()
     root.resizable(width =  True, height = True)
     root.mainloop()
